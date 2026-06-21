@@ -1,0 +1,43 @@
+name: Update SCP Markdown
+
+on:
+  schedule:
+    - cron: '0 0 * * *'   # каждый день в 00:00 UTC
+  workflow_dispatch:        # ручной запуск из вкладки Actions
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300    # серии 1-10 ~ тысячи запросов, даём 5 часов
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: pip-
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run bulk parser
+        run: python3 scp_bulk.py --resume --delay 0.2
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add output/ errors.log 2>/dev/null || true
+          git diff --cached --quiet && echo "Нет изменений" && exit 0
+          git commit -m "chore: update SCP markdown [$(date -u +%Y-%m-%d)]"
+          git push

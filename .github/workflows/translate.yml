@@ -1,0 +1,50 @@
+name: Translate SCP to Russian
+
+on:
+  workflow_run:
+    workflows: ["Update SCP Markdown"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360   # argostranslate работает на CPU — даём 6 часов
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-translate-${{ hashFiles('requirements-translate.txt') }}
+          restore-keys: pip-translate-
+
+      - name: Cache Argos en→ru model
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/argos-translate
+          key: argos-en-ru-v1
+
+      - name: Install dependencies
+        run: pip install -r requirements-translate.txt
+
+      - name: Translate
+        run: python3 translate_bulk.py --resume
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add output-ru/
+          git diff --cached --quiet && echo "Нет новых переводов" && exit 0
+          git commit -m "chore: translate SCP to Russian [$(date -u +%Y-%m-%d)]"
+          git push
